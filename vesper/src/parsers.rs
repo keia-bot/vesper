@@ -1,7 +1,9 @@
 use std::ops::{Deref, DerefMut};
 use async_trait::async_trait;
 use twilight_model::application::command::{CommandOption, CommandOptionType};
-use twilight_model::application::interaction::application_command::{CommandInteractionDataResolved, CommandOptionValue, InteractionChannel};
+use twilight_model::application::interaction::application_command::CommandOptionValue;
+use twilight_model::application::interaction::InteractionChannel;
+use twilight_model::application::interaction::InteractionDataResolved;
 use twilight_model::channel::ChannelType;
 use twilight_model::id::Id;
 use twilight_model::id::marker::ChannelMarker;
@@ -48,7 +50,7 @@ macro_rules! parse_id {
                 http_client: &WrappedClient,
                 data: &T,
                 value: Option<&CommandOptionValue>,
-                resolved: Option<&mut CommandInteractionDataResolved>
+                resolved: Option<&mut InteractionDataResolved>
             ) -> Result<Self, ParseError> {
                 Ok(Self(Id::parse(http_client, data, value, resolved).await?))
             }
@@ -77,7 +79,7 @@ macro_rules! parse_derived_channel {
                 http_client: &WrappedClient,
                 data: &T,
                 value: Option<&CommandOptionValue>,
-                resolved: Option<&mut CommandInteractionDataResolved>
+                resolved: Option<&mut InteractionDataResolved>
             ) -> Result<Self, ParseError> {
                 let id = <$id>::parse(http_client, data, value, None).await?;
 

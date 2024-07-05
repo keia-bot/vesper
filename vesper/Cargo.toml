@@ -21,13 +21,26 @@ async-trait = "0.1"
 vesper-macros = { path = "../vesper-macros", version = "0.13" }
 parking_lot = "0.12"
 tracing = "0.1"
-twilight-model = "0.15"
-twilight-http = { version = "0.15", default-features = false }
-twilight-validate = "0.15"
 thiserror = "1"
 
 # feature: bulk
-twilight-util = { version = "0.15", features = ["builder"], optional = true }
+[dependencies.twilight-util]
+git = "https://github.com/keia-bot/twilight"
+branch = "fix/partial-member"
+optional = true
+features = ["builder"]
+
+[dependencies.twilight-validate]
+git = "https://github.com/keia-bot/twilight"
+branch = "fix/partial-member"
+
+[dependencies.twilight-model]
+git = "https://github.com/keia-bot/twilight"
+branch = "fix/partial-member"
+
+[dependencies.twilight-http]
+git = "https://github.com/keia-bot/twilight"
+branch = "fix/partial-member"
 
 [dependencies.tokio]
 version = "1"
