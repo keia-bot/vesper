@@ -1,11 +1,13 @@
+use futures_util::stream::select_all;
 use std::env;
 use std::sync::Arc;
-use futures_util::StreamExt;
-use twilight_gateway::{stream::{self, ShardEventStream}, Config};
+use twilight_gateway::{create_recommended, Config, EventTypeFlags, StreamExt};
 use twilight_http::Client;
 use twilight_model::gateway::event::Event;
 use twilight_model::gateway::Intents;
-use twilight_model::http::interaction::{InteractionResponse, InteractionResponseData, InteractionResponseType};
+use twilight_model::http::interaction::{
+    InteractionResponse, InteractionResponseData, InteractionResponseType,
+};
 use twilight_model::id::Id;
 use vesper::framework::DefaultError;
 use vesper::prelude::*;
@@ -13,18 +15,19 @@ use vesper::prelude::*;
 #[tokio::main]
 async fn main() {
     let token = env::var("DISCORD_TOKEN").unwrap();
-    let application_id = env::var("DISCORD_APPLICATION_ID").unwrap().parse::<u64>().unwrap();
+    let application_id = env::var("DISCORD_APPLICATION_ID")
+        .unwrap()
+        .parse::<u64>()
+        .unwrap();
 
     let http_client = Arc::new(Client::new(token.clone()));
 
     let config = Config::new(token.clone(), Intents::empty());
-    let mut shards = stream::create_recommended(
-        &http_client,
-        config,
-        |_, builder| builder.build()
-    ).await.unwrap().collect::<Vec<_>>();
+    let shards = create_recommended(&http_client, config, |_, builder| builder.build())
+        .await
+        .unwrap();
 
-    let mut stream = ShardEventStream::new(shards.iter_mut());
+    let mut stream = select_all(shards);
 
     let framework = Framework::builder(http_client, Id::new(application_id), ())
         .command(hello)
@@ -32,24 +35,22 @@ async fn main() {
         .after(after_hook)
         .build();
 
-    while let Some((_, event)) = stream.next().await {
+    while let Some(event) = stream.next_event(EventTypeFlags::all()).await {
         match event {
             Err(error) => {
-                if error.is_fatal() {
-                    eprintln!("Gateway connection fatally closed, error: {error:?}");
-                    break;
-                }
-            },
+                eprintln!("Gateway failed to receive message, error: {error:?}");
+                continue;
+            }
             Ok(event) => match event {
                 Event::Ready(_) => {
                     // We have to register the commands for them to show in discord.
                     framework.register_global_commands().await.unwrap();
-                },
+                }
                 Event::InteractionCreate(interaction) => {
                     framework.process(interaction.0).await;
-                },
-                _ => ()
-            }
+                }
+                _ => (),
+            },
         }
     }
 }
@@ -65,24 +66,30 @@ async fn before_hook(_ctx: &SlashContext<()>, command_name: &str) -> bool {
 // The result field will be some only if the command returned no errors or if the command has
 // no custom error handler set.
 #[after]
-async fn after_hook(_ctx: &SlashContext<()>, command_name: &str, result: Option<DefaultCommandResult>) {
+async fn after_hook(
+    _ctx: &SlashContext<()>,
+    command_name: &str,
+    result: Option<DefaultCommandResult>,
+) {
     println!("{command_name} finished, returned value: {result:?}");
 }
 
 #[command]
 #[description = "Says hello"]
 async fn hello(ctx: &SlashContext<()>) -> DefaultCommandResult {
-    ctx.interaction_client.create_response(
-        ctx.interaction.id,
-        &ctx.interaction.token,
-        &InteractionResponse {
-            kind: InteractionResponseType::ChannelMessageWithSource,
-            data: Some(InteractionResponseData {
-                content: Some(String::from("Hello!")),
-                ..Default::default()
-            })
-        }
-    ).await?;
+    ctx.interaction_client
+        .create_response(
+            ctx.interaction.id,
+            &ctx.interaction.token,
+            &InteractionResponse {
+                kind: InteractionResponseType::ChannelMessageWithSource,
+                data: Some(InteractionResponseData {
+                    content: Some(String::from("Hello!")),
+                    ..Default::default()
+                }),
+            },
+        )
+        .await?;
 
     Ok(())
 }
@@ -102,15 +109,20 @@ async fn handle_error(_ctx: &SlashContext<()>, result: DefaultError) {
 async fn raises_error(ctx: &SlashContext<()>) -> DefaultCommandResult {
     ctx.defer(false).await?;
     if !ctx.interaction.is_guild() {
-        ctx.interaction_client.update_response(&ctx.interaction.token)
-            .content(Some("This command can only be used in guilds")).unwrap()
+        ctx.interaction_client
+            .update_response(&ctx.interaction.token)
+            .content(Some("This command can only be used in guilds"))
             .await?;
 
-        return Ok(())
+        return Ok(());
     }
 
     // Trying to ban a bot by itself results in an error.
-    ctx.http_client().ban(ctx.interaction.guild_id.unwrap(), Id::new(ctx.application_id.get()))
+    ctx.http_client()
+        .ban(
+            ctx.interaction.guild_id.unwrap(),
+            Id::new(ctx.application_id.get()),
+        )
         .await?;
 
     Ok(())

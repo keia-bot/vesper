@@ -26,21 +26,21 @@ thiserror = "1"
 # feature: bulk
 [dependencies.twilight-util]
 git = "https://github.com/keia-bot/twilight"
-branch = "fix/partial-member"
+branch = "keia"
 optional = true
 features = ["builder"]
 
 [dependencies.twilight-validate]
 git = "https://github.com/keia-bot/twilight"
-branch = "fix/partial-member"
+branch = "keia"
 
 [dependencies.twilight-model]
 git = "https://github.com/keia-bot/twilight"
-branch = "fix/partial-member"
+branch = "keia"
 
 [dependencies.twilight-http]
 git = "https://github.com/keia-bot/twilight"
-branch = "fix/partial-member"
+branch = "keia"
 
 [dependencies.tokio]
 version = "1"

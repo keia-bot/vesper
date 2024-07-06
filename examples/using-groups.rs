@@ -1,8 +1,8 @@
 use std::env;
 use std::sync::Arc;
-use futures_util::StreamExt;
+use futures_util::stream::select_all;
 use rand::Rng;
-use twilight_gateway::{stream::{self, ShardEventStream}, Config};
+use twilight_gateway::{create_recommended, Config, EventTypeFlags, StreamExt};
 use twilight_http::Client;
 use twilight_model::gateway::event::Event;
 use twilight_model::gateway::Intents;
@@ -18,13 +18,13 @@ async fn main() {
     let http_client = Arc::new(Client::new(token.clone()));
 
     let config = Config::new(token.clone(), Intents::empty());
-    let mut shards = stream::create_recommended(
+    let shards = create_recommended(
         &http_client,
         config,
         |_, builder| builder.build()
-    ).await.unwrap().collect::<Vec<_>>();
+    ).await.unwrap();
 
-    let mut stream = ShardEventStream::new(shards.iter_mut());
+    let mut stream = select_all(shards);
 
     let framework = Framework::builder(http_client, Id::new(application_id), ())
         .group(|group| {
@@ -52,13 +52,11 @@ async fn main() {
         })
         .build();
 
-    while let Some((_, event)) = stream.next().await {
+    while let Some(event) = stream.next_event(EventTypeFlags::all()).await {
         match event {
             Err(error) => {
-                if error.is_fatal() {
-                    eprintln!("Gateway connection fatally closed, error: {error:?}");
-                    break;
-                }
+                eprintln!("Gateway failed to receive message, error: {error:?}");
+                continue;
             },
             Ok(event) => match event {
                 Event::Ready(_) => {

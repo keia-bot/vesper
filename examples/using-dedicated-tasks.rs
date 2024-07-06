@@ -1,56 +1,59 @@
+use futures_util::stream::select_all;
 use std::env;
 use std::sync::Arc;
-use futures_util::StreamExt;
-use twilight_gateway::{stream::{self, ShardEventStream}, Config};
+use twilight_gateway::{create_recommended, Config, EventTypeFlags, StreamExt};
 use twilight_http::Client;
 use twilight_model::gateway::event::Event;
 use twilight_model::gateway::Intents;
-use twilight_model::http::interaction::{InteractionResponse, InteractionResponseData, InteractionResponseType};
+use twilight_model::http::interaction::{
+    InteractionResponse, InteractionResponseData, InteractionResponseType,
+};
 use twilight_model::id::Id;
 use vesper::prelude::*;
 
 #[tokio::main]
 async fn main() {
     let token = env::var("DISCORD_TOKEN").unwrap();
-    let application_id = env::var("DISCORD_APPLICATION_ID").unwrap().parse::<u64>().unwrap();
+    let application_id = env::var("DISCORD_APPLICATION_ID")
+        .unwrap()
+        .parse::<u64>()
+        .unwrap();
 
     let http_client = Arc::new(Client::new(token.clone()));
 
     let config = Config::new(token.clone(), Intents::empty());
-    let mut shards = stream::create_recommended(
-        &http_client,
-        config,
-        |_, builder| builder.build()
-    ).await.unwrap().collect::<Vec<_>>();
+    let shards = create_recommended(&http_client, config, |_, builder| builder.build())
+        .await
+        .unwrap();
 
-    let mut stream = ShardEventStream::new(shards.iter_mut());
+    let mut stream = select_all(shards);
 
     // Wrap the framework in an Arc, so we can share it across tasks.
-    let framework = Arc::new(Framework::builder(http_client, Id::new(application_id), ())
-        .command(state)
-        .build());
+    let framework = Arc::new(
+        Framework::builder(http_client, Id::new(application_id), ())
+            .command(state)
+            .build(),
+    );
 
-    while let Some((_, event)) = stream.next().await {
+    while let Some(event) = stream.next_event(EventTypeFlags::all()).await {
         match event {
             Err(error) => {
-                if error.is_fatal() {
-                    eprintln!("Gateway connection fatally closed, error: {error:?}");
-                    break;
-                }
-            },
+                eprintln!("Gateway failed to receive message, error: {error:?}");
+                continue;
+            }
             Ok(event) => match event {
                 Event::Ready(_) => {
                     // We have to register the commands for them to show in discord.
                     framework.register_global_commands().await.unwrap();
-                },
+                }
                 Event::InteractionCreate(interaction) => {
                     let framework_clone = Arc::clone(&framework);
                     tokio::spawn(async move {
                         framework_clone.process(interaction.0).await;
                     });
-                },
-                _ => ()
-            }
+                }
+                _ => (),
+            },
         }
     }
 }
@@ -58,17 +61,21 @@ async fn main() {
 #[command]
 #[description = "Says where the client is running"]
 async fn state(ctx: &SlashContext<()>) -> DefaultCommandResult {
-    ctx.interaction_client.create_response(
-        ctx.interaction.id,
-        &ctx.interaction.token,
-        &InteractionResponse {
-            kind: InteractionResponseType::ChannelMessageWithSource,
-            data: Some(InteractionResponseData {
-                content: Some(String::from("Running inside a multithreaded tokio runtime!")),
-                ..Default::default()
-            })
-        }
-    ).await?;
+    ctx.interaction_client
+        .create_response(
+            ctx.interaction.id,
+            &ctx.interaction.token,
+            &InteractionResponse {
+                kind: InteractionResponseType::ChannelMessageWithSource,
+                data: Some(InteractionResponseData {
+                    content: Some(String::from(
+                        "Running inside a multithreaded tokio runtime!",
+                    )),
+                    ..Default::default()
+                }),
+            },
+        )
+        .await?;
 
     Ok(())
 }

@@ -1,7 +1,6 @@
 use std::env;
 use std::sync::Arc;
-use futures_util::StreamExt;
-use twilight_gateway::{stream::{self, ShardEventStream}, Config};
+use twilight_gateway::{create_recommended, Config};
 use twilight_http::Client;
 use twilight_model::gateway::event::Event;
 use twilight_model::gateway::Intents;
@@ -17,7 +16,7 @@ async fn main() {
     let http_client = Arc::new(Client::new(token.clone()));
 
     let config = Config::new(token.clone(), Intents::empty());
-    let mut shards = stream::create_recommended(
+    let mut shards = create_recommended(
         &http_client,
         config,
         |_, builder| builder.build()

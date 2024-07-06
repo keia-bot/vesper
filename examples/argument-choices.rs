@@ -1,7 +1,5 @@
 use std::env;
 use std::sync::Arc;
-use futures_util::StreamExt;
-use twilight_gateway::{stream::{self, ShardEventStream}, Config};
 use twilight_http::Client;
 use twilight_model::gateway::event::Event;
 use twilight_model::gateway::Intents;

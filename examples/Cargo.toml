@@ -8,10 +8,19 @@ publish = false
 futures-util = "0.3"
 rand = "0.8"
 tokio = { version = "1", features = ["full"]}
-twilight-http = "0.15"
-twilight-model = "0.15"
-twilight-gateway = "0.15.0"
 vesper = { path = "../vesper" }
+
+[dependencies.twilight-model]
+git = "https://github.com/keia-bot/twilight"
+branch = "keia"
+
+[dependencies.twilight-gateway]
+git = "https://github.com/keia-bot/twilight"
+branch = "keia"
+
+[dependencies.twilight-http]
+git = "https://github.com/keia-bot/twilight"
+branch = "keia"
 
 [[example]]
 name = "basic-bot"
